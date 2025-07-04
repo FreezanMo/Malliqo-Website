@@ -1,0 +1,631 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Malliqo: Step Into the Future of Shopping</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;600;700;800&display=swap" rel="stylesheet">
+    <!-- Three.js CDN for 3D rendering -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+
+    <!-- Firebase SDKs -->
+    <script type="module">
+        import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
+        import { getAuth, signInAnonymously, signInWithCustomToken } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
+        import { getFirestore, collection, addDoc, serverTimestamp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
+
+        // Global variables for Firebase instances
+        window.firebaseApp = null;
+        window.db = null;
+        window.auth = null;
+        window.userId = null;
+        window.appId = typeof __app_id !== 'undefined' ? __app_id : 'default-app-id';
+
+        // Function to initialize Firebase and authenticate
+        async function initializeFirebase() {
+            try {
+                const firebaseConfig = JSON.parse(typeof __firebase_config !== 'undefined' ? __firebase_config : '{}');
+                if (Object.keys(firebaseConfig).length === 0) {
+                    console.error("Firebase config is missing. Cannot initialize Firebase.");
+                    return;
+                }
+
+                window.firebaseApp = initializeApp(firebaseConfig);
+                window.db = getFirestore(window.firebaseApp);
+                window.auth = getAuth(window.firebaseApp);
+
+                const initialAuthToken = typeof __initial_auth_token !== 'undefined' ? __initial_auth_token : null;
+
+                if (initialAuthToken) {
+                    await signInWithCustomToken(window.auth, initialAuthToken);
+                } else {
+                    await signInAnonymously(window.auth);
+                }
+                window.userId = window.auth.currentUser?.uid || crypto.randomUUID();
+                console.log("Firebase initialized and user authenticated:", window.userId);
+
+                // Display user ID for multi-user context (important for Firestore rules)
+                const userIdDisplay = document.getElementById('userIdDisplay');
+                if (userIdDisplay) {
+                    userIdDisplay.textContent = `Your User ID: ${window.userId}`;
+                }
+
+            } catch (error) {
+                console.error("Error initializing Firebase or authenticating:", error);
+            }
+        }
+
+        // Call initialization function when the window loads
+        // This ensures Firebase is ready before any Firestore operations are attempted
+        window.addEventListener('load', initializeFirebase);
+
+        // Expose addDoc and collection for the form handler
+        window.addDoc = addDoc;
+        window.collection = collection;
+        window.serverTimestamp = serverTimestamp;
+    </script>
+
+    <style>
+        body {
+            font-family: 'Inter', sans-serif;
+            background: linear-gradient(135deg, #4A00E0 0%, #8E2DE2 100%);
+            color: #e0e7ff; /* Light text color for contrast */
+            min-height: 100vh;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            overflow-x: hidden;
+            scroll-behavior: smooth; /* Smooth scrolling for navigation */
+        }
+        .container {
+            max-width: 1200px;
+            width: 100%;
+            padding: 1rem;
+        }
+        section {
+            background-color: rgba(255, 255, 255, 0.1);
+            border-radius: 20px;
+            padding: 3rem 2rem;
+            margin-bottom: 2rem;
+            box-shadow: 0 10px 30px rgba(0, 0, 0, 0.3);
+            backdrop-filter: blur(10px);
+            -webkit-backdrop-filter: blur(10px);
+            text-align: center;
+            opacity: 0; /* Hidden by default for scroll animation */
+            transform: translateY(20px);
+            transition: opacity 0.6s ease-out, transform 0.6s ease-out;
+        }
+        section.is-visible {
+            opacity: 1;
+            transform: translateY(0);
+        }
+        h1 {
+            font-size: 3.5rem;
+            font-weight: 800;
+            line-height: 1.1;
+            margin-bottom: 1rem;
+            color: #ffffff;
+        }
+        h2 {
+            font-size: 2.8rem;
+            font-weight: 700;
+            margin-bottom: 2rem;
+            color: #c4b5fd;
+        }
+        h3 {
+            font-size: 2rem;
+            font-weight: 600;
+            margin-bottom: 1.5rem;
+            color: #a78bfa;
+        }
+        p {
+            font-size: 1.1rem;
+            line-height: 1.7;
+            margin-bottom: 1rem;
+        }
+        ul {
+            list-style: none;
+            padding: 0;
+            text-align: left;
+            margin: 0 auto;
+            max-width: 600px;
+        }
+        li {
+            font-size: 1.1rem;
+            line-height: 1.6;
+            margin-bottom: 0.75rem;
+        }
+        li:before {
+            content: '✨'; /* Fun emoji bullet */
+            color: #a78bfa;
+            font-weight: bold;
+            display: inline-block;
+            width: 1.5em;
+            margin-left: -1.5em;
+        }
+        .btn {
+            display: inline-block;
+            padding: 1rem 2.5rem;
+            border-radius: 12px;
+            font-weight: 700;
+            text-decoration: none;
+            transition: all 0.3s ease;
+            box-shadow: 0 6px 15px rgba(0, 0, 0, 0.2);
+            margin: 0.75rem;
+        }
+        .btn-primary {
+            background-color: #a78bfa;
+            color: white;
+        }
+        .btn-primary:hover {
+            background-color: #8b5cf6;
+            transform: translateY(-3px);
+            box-shadow: 0 8px 20px rgba(0, 0, 0, 0.3);
+        }
+        .btn-secondary {
+            background-color: transparent;
+            border: 2px solid #c4b5fd;
+            color: #c4b5fd;
+        }
+        .btn-secondary:hover {
+            background-color: rgba(196, 181, 253, 0.1);
+            transform: translateY(-3px);
+            box-shadow: 0 8px 20px rgba(0, 0, 0, 0.3);
+        }
+        .header {
+            width: 100%;
+            background-color: rgba(255, 255, 255, 0.05);
+            padding: 1rem 2rem;
+            border-bottom-left-radius: 20px;
+            border-bottom-right-radius: 20px;
+            box-shadow: 0 4px 15px rgba(0, 0, 0, 0.2);
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            position: sticky;
+            top: 0;
+            z-index: 1000;
+            backdrop-filter: blur(8px);
+            -webkit-backdrop-filter: blur(8px);
+        }
+        .header .logo img {
+            height: 40px;
+            object-fit: contain;
+        }
+        .header nav a {
+            color: #e0e7ff;
+            margin-left: 1.5rem;
+            font-weight: 600;
+            text-decoration: none;
+            transition: color 0.2s ease;
+        }
+        .header nav a:hover {
+            color: #a78bfa;
+        }
+        .visual-area {
+            width: 100%;
+            height: 300px;
+            background-color: rgba(255, 255, 255, 0.15);
+            border-radius: 15px;
+            margin: 2rem auto;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            font-size: 1.5rem;
+            font-weight: 600;
+            color: rgba(255, 255, 255, 0.7);
+            overflow: hidden;
+        }
+        .visual-area img {
+            width: 100%;
+            height: 100%;
+            object-fit: cover; /* Use cover for section visuals */
+            border-radius: 15px;
+        }
+        .visual-area svg {
+            width: 90%;
+            height: 90%;
+            max-width: 500px;
+            max-height: 280px;
+            padding: 10px;
+        }
+        .visual-area canvas {
+            width: 100% !important;
+            height: 100% !important;
+            display: block;
+            border-radius: 15px;
+        }
+        .email-form {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            gap: 1rem;
+            margin-top: 2rem;
+        }
+        .email-form input[type="email"] {
+            padding: 0.8rem 1.5rem;
+            border-radius: 10px;
+            border: 2px solid #c4b5fd;
+            background-color: rgba(255, 255, 255, 0.1);
+            color: white;
+            font-size: 1rem;
+            width: 100%;
+            max-width: 300px;
+            outline: none;
+            transition: border-color 0.3s ease;
+        }
+        .email-form input[type="email"]::placeholder {
+            color: rgba(255, 255, 255, 0.7);
+        }
+        .email-form input[type="email"]:focus {
+            border-color: #a78bfa;
+        }
+        .email-form button {
+            padding: 0.8rem 2.5rem;
+            border-radius: 12px;
+            font-weight: 700;
+            background-color: #a78bfa;
+            color: white;
+            cursor: pointer;
+            transition: background-color 0.3s ease, transform 0.2s ease;
+            box-shadow: 0 4px 10px rgba(0, 0, 0, 0.2);
+            border: none;
+        }
+        .email-form button:hover {
+            background-color: #8b5cf6;
+            transform: translateY(-2px);
+            box-shadow: 0 6px 15px rgba(0, 0, 0, 0.3);
+        }
+
+        /* Responsive adjustments */
+        @media (max-width: 768px) {
+            h1 {
+                font-size: 2.8rem;
+            }
+            h2 {
+                font-size: 2.2rem;
+            }
+            h3 {
+                font-size: 1.7rem;
+            }
+            p, ul, li {
+                font-size: 1rem;
+            }
+            section {
+                padding: 2rem 1.5rem;
+            }
+            .header {
+                flex-direction: column;
+                padding: 1rem;
+            }
+            .header nav {
+                margin-top: 1rem;
+                display: flex;
+                flex-wrap: wrap;
+                justify-content: center;
+            }
+            .header nav a {
+                margin: 0.5rem 0.8rem;
+            }
+            .btn {
+                padding: 0.8rem 2rem;
+                font-size: 0.9rem;
+            }
+            .visual-area {
+                height: 250px;
+            }
+            .email-form input[type="email"] {
+                max-width: 90%;
+            }
+        }
+        @media (max-width: 480px) {
+            h1 {
+                font-size: 2.2rem;
+            }
+            h2 {
+                font-size: 1.8rem;
+            }
+            h3 {
+                font-size: 1.4rem;
+            }
+            .btn {
+                width: 90%;
+                margin: 0.5rem auto;
+            }
+            .visual-area {
+                height: 180px;
+            }
+        }
+    </style>
+</head>
+<body>
+
+    <header class="header">
+        <div class="logo">
+            <a href="#hero"><img src="__file_content_fetch_url__/uploaded:logo.jpg-3c4c9130-be43-4970-96b6-c8b48d45295f" alt="Malliqo Logo"></a>
+        </div>
+        <nav>
+            <a href="#features">Features</a>
+            <a href="#beta">Beta</a>
+            <a href="#team">Team</a>
+            <a href="#contact">Contact</a>
+        </nav>
+    </header>
+
+    <main class="container">
+        <!-- Hero Section -->
+        <section id="hero" class="is-visible">
+            <h1>Step Into the Future of Shopping with Malliqo</h1>
+            <p class="text-xl text-purple-200 mb-8">Redefining Retail, Connection, and Discovery in a 3D Virtual World.</p>
+            <div class="visual-area" id="hero-3d-container">
+                <!-- Three.js Canvas will be rendered here -->
+                <canvas id="heroCanvas"></canvas>
+            </div>
+            <a href="#beta" class="btn btn-primary">Try Beta Now!</a>
+            <a href="#beta" class="btn btn-secondary">Join Waitlist</a>
+        </section>
+
+        <!-- Features Section -->
+        <section id="features">
+            <h2>Experience a New Dimension of Retail</h2>
+            <p class="text-lg text-purple-200 mb-8">Malliqo brings together shopping, social interaction, and entertainment in one seamless 3D environment.</p>
+
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-8 mt-8">
+                <div class="feature-card text-left">
+                    <h3>Immersive 3D Navigation</h3>
+                    <p>Stroll through beautifully designed virtual storefronts, explore vibrant food courts, and discover unique gift zones just like in a real mall. Our intuitive 3D environment makes browsing a joy.</p>
+                    <div class="visual-area h-48">
+                        <img src="https://placehold.co/400x200/764ba2/ffffff?text=3D+Navigation+View" alt="3D Navigation View">
+                    </div>
+                </div>
+                <div class="feature-card text-left">
+                    <h3>Real-Time Social Commerce</h3>
+                    <p>Connect with friends, chat directly with sellers for instant queries and support, and even send digital gifts within the mall. Shopping becomes a truly social and interactive experience.</p>
+                    <div class="visual-area h-48">
+                        <img src="https://placehold.co/400x200/a78bfa/ffffff?text=Social+Chat+UI" alt="Social Chat UI">
+                    </div>
+                </div>
+                <div class="feature-card text-left">
+                    <h3>Integrated Food & Entertainment</h3>
+                    <p>Order delicious food from virtual mall eateries directly to your real-world location. Participate in live events, fashion shows, product launches, and enjoy interactive games, all without leaving Malliqo.</p>
+                    <div class="visual-area h-48">
+                        <img src="https://placehold.co/400x200/c4b5fd/ffffff?text=Food+Order+Interface" alt="Food Order Interface">
+                    </div>
+                </div>
+                <div class="feature-card text-left">
+                    <h3>Personalised & Rewarding Experience</h3>
+                    <p>Benefit from personalized shopping carts and recommendations tailored to your preferences. Earn loyalty rewards for frequent shopping and even try products virtually with Augmented Reality (AR) previews.</p>
+                    <div class="visual-area h-48">
+                        <img src="https://placehold.co/400x200/e0e7ff/4A00E0?text=AR+Product+Preview" alt="AR Product Preview">
+                    </div>
+                </div>
+                <div class="feature-card md:col-span-2 text-left">
+                    <h3>Mallie: Your AI Shopping Assistant</h3>
+                    <p>Meet Mallie, your smart, personalized AI assistant. Mallie guides you through the mall, offers product recommendations, answers your queries, assists with navigation, and learns your preferences to provide a truly tailored shopping journey.</p>
+                    <div class="visual-area h-48">
+                        <img src="https://placehold.co/400x200/8b5cf6/ffffff?text=Mallie+AI+Assistant" alt="Mallie AI Assistant">
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <!-- Beta Section -->
+        <section id="beta">
+            <h2>Join the Malliqo Beta!</h2>
+            <p class="text-lg text-purple-200 mb-4">Be among the first to experience the future of shopping. We already have 1000+ people on our waitlist!</p>
+            <div class="visual-area">
+                <img src="https://placehold.co/800x400/a78bfa/ffffff?text=Beta+Access" alt="Beta Access">
+            </div>
+            <p class="text-xl text-white font-semibold mt-4">Try our live MVP Beta now:</p>
+            <a href="https://ohara.ai/mini-apps/ba55e7cd-8b95-4bd1-a1d6-b28a5f52f81c" target="_blank" class="btn btn-primary">Malliqo 3D Shopping Mall</a>
+            
+            <p class="text-lg text-purple-200 mt-8">Or join our waitlist for future updates and exclusive access:</p>
+            <form id="waitlist-form" class="email-form">
+                <input type="email" id="email" name="email" placeholder="Enter your email" required>
+                <button type="submit">Join Waitlist</button>
+            </form>
+            <div id="form-message" class="mt-4 text-green-300 hidden"></div>
+            <p id="userIdDisplay" class="text-xs text-purple-200 mt-4"></p>
+        </section>
+
+        <!-- Team Section -->
+        <section id="team">
+            <h2>Meet the Visionary Team</h2>
+            <p class="text-lg text-purple-200 mb-8">Driving the future of retail with passion and expertise.</p>
+            <div class="grid grid-cols-1 md:grid-cols-3 gap-8">
+                <div class="team-member-card">
+                    <div class="visual-area h-48 rounded-full w-48 mx-auto mb-4">
+                        <img src="https://placehold.co/150x150/667eea/ffffff?text=Freezan+Mo" alt="Freezan Mo">
+                    </div>
+                    <h3 class="text-purple-300">Freezan Mo</h3>
+                    <p class="text-purple-200">Founder</p>
+                    <p class="text-sm">Visionary leader with a passion for redefining retail and immersive technology. <a href="https://www.linkedin.com/in/freezanmo/" target="_blank" class="text-purple-200 underline hover:text-purple-100">LinkedIn</a></p>
+                </div>
+                <div class="team-member-card">
+                    <div class="visual-area h-48 rounded-full w-48 mx-auto mb-4">
+                        <img src="https://placehold.co/150x150/764ba2/ffffff?text=Dev+Team" alt="Development Team">
+                    </div>
+                    <h3 class="text-purple-300">Development Team</h3>
+                    <p class="text-purple-200">Engineers & Developers</p>
+                    <p class="text-sm">Our skilled engineers are building the robust 3D platform and real-time functionalities.</p>
+                </div>
+                <div class="team-member-card">
+                    <div class="visual-area h-48 rounded-full w-48 mx-auto mb-4">
+                        <img src="https://placehold.co/150x150/a78bfa/ffffff?text=Marketing+Team" alt="Marketing and Partnership Team">
+                    </div>
+                    <h3 class="text-purple-300">Marketing & Partnership Team</h3>
+                    <p class="text-purple-200">Growth & Alliances</p>
+                    <p class="text-sm">Driving user acquisition, brand awareness, and forging strategic alliances.</p>
+                </div>
+            </div>
+        </section>
+
+        <!-- Contact Section -->
+        <section id="contact">
+            <h2>Get in Touch</h2>
+            <p class="text-lg text-purple-200 mb-8">We'd love to hear from you!</p>
+            <div class="visual-area">
+                <img src="https://placehold.co/800x400/c4b5fd/4A00E0?text=Contact+Us" alt="Contact Us">
+            </div>
+            <ul class="text-center mx-auto list-none p-0">
+                <li class="mb-2">Freezan Mo, Founder</li>
+                <li class="mb-2">Email: <a href="mailto:mohammedfreezan@gmail.com" class="text-purple-200 underline hover:text-purple-100">mohammedfreezan@gmail.com</a></li>
+                <li class="mb-2">Phone: +91 8072401586</li>
+                <li>LinkedIn: <a href="https://www.linkedin.com/in/freezanmo/" target="_blank" class="text-purple-200 underline hover:text-purple-100">https://www.linkedin.com/in/freezanmo/</a></li>
+            </ul>
+        </section>
+    </main>
+
+    <footer class="w-full text-center py-8 text-purple-200 text-sm">
+        <p>&copy; 2025 Malliqo. All rights reserved.</p>
+    </footer>
+
+    <script type="module">
+        // Import Firebase functions (already imported at the top, but repeated here for clarity within this script block)
+        import { getFirestore, collection, addDoc, serverTimestamp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
+
+        // Intersection Observer for scroll animations
+        const sections = document.querySelectorAll('section');
+
+        const observerOptions = {
+            root: null,
+            rootMargin: '0px',
+            threshold: 0.1
+        };
+
+        const observer = new IntersectionObserver((entries, observer) => {
+            entries.forEach(entry => {
+                if (entry.isIntersecting) {
+                    entry.target.classList.add('is-visible');
+                    // Optionally, stop observing once visible
+                    // observer.unobserve(entry.target);
+                } else {
+                    // Optional: remove class when out of view if you want re-animation on scroll back
+                    // entry.target.classList.remove('is-visible');
+                }
+            });
+        }, observerOptions);
+
+        sections.forEach(section => {
+            observer.observe(section);
+        });
+
+        // Smooth scroll for header navigation
+        document.querySelectorAll('nav a').forEach(anchor => {
+            anchor.addEventListener('click', function (e) {
+                e.preventDefault();
+                document.querySelector(this.getAttribute('href')).scrollIntoView({
+                    behavior: 'smooth'
+                });
+            });
+        });
+
+        // Three.js setup for Hero Section
+        window.addEventListener('load', function() {
+            const container = document.getElementById('hero-3d-container');
+            const canvas = document.getElementById('heroCanvas');
+
+            if (!container || !canvas) {
+                console.error("3D container or canvas not found.");
+                return;
+            }
+
+            console.log("3D container dimensions:", container.clientWidth, container.clientHeight);
+
+            // Scene, Camera, Renderer
+            const scene = new THREE.Scene();
+            const camera = new THREE.PerspectiveCamera(75, container.clientWidth / container.clientHeight, 0.1, 1000);
+            const renderer = new THREE.WebGLRenderer({ canvas: canvas, alpha: true }); // alpha: true for transparent background
+            renderer.setSize(container.clientWidth, container.clientHeight);
+            renderer.setPixelRatio(window.devicePixelRatio);
+
+            // Geometry (changed to BoxGeometry for initial debugging)
+            const geometry = new THREE.BoxGeometry( 1, 1, 1 ); // A simple cube
+            const material = new THREE.MeshPhongMaterial({ color: 0x8b5cf6, shininess: 100 }); // Purple color
+            const cube = new THREE.Mesh(geometry, material);
+            scene.add(cube);
+
+            // Lighting
+            const ambientLight = new THREE.AmbientLight(0x404040); // soft white light
+            scene.add(ambientLight);
+            const directionalLight = new THREE.DirectionalLight(0xffffff, 0.8);
+            directionalLight.position.set(1, 1, 1).normalize();
+            scene.add(directionalLight);
+
+            camera.position.z = 2;
+
+            // Animation loop
+            const animate = () => {
+                requestAnimationFrame(animate);
+
+                cube.rotation.x += 0.005;
+                cube.rotation.y += 0.005;
+
+                renderer.render(scene, camera);
+            };
+
+            // Handle window resize
+            window.addEventListener('resize', () => {
+                const newWidth = container.clientWidth;
+                const newHeight = container.clientHeight;
+                camera.aspect = newWidth / newHeight;
+                camera.updateProjectionMatrix();
+                renderer.setSize(newWidth, newHeight);
+                console.log("Canvas resized to:", newWidth, newHeight);
+            });
+
+            animate();
+            console.log("Three.js animation started.");
+        });
+
+        // Handle waitlist form submission with Firestore
+        document.getElementById('waitlist-form').addEventListener('submit', async function(event) {
+            event.preventDefault(); // Prevent default form submission
+
+            const emailInput = document.getElementById('email');
+            const formMessage = document.getElementById('form-message');
+            const email = emailInput.value;
+
+            if (!email) {
+                formMessage.textContent = 'Please enter a valid email address.';
+                formMessage.classList.remove('hidden');
+                formMessage.classList.remove('text-green-300');
+                formMessage.classList.add('text-red-400');
+                return;
+            }
+
+            if (!window.db || !window.userId) {
+                formMessage.textContent = 'Firebase is not initialized. Please try again in a moment.';
+                formMessage.classList.remove('hidden');
+                formMessage.classList.remove('text-green-300');
+                formMessage.classList.add('text-red-400');
+                console.error("Firestore DB or User ID not available.");
+                return;
+            }
+
+            try {
+                // Firestore collection path for public data
+                const collectionPath = `artifacts/${window.appId}/public/data/waitlist_emails`;
+                await addDoc(collection(window.db, collectionPath), {
+                    email: email,
+                    timestamp: serverTimestamp(), // Use serverTimestamp for consistent timestamps
+                    userId: window.userId // Store user ID for reference
+                });
+
+                formMessage.textContent = 'Thank you for joining the waitlist! We\'ll be in touch.';
+                formMessage.classList.remove('hidden');
+                formMessage.classList.remove('text-red-400');
+                formMessage.classList.add('text-green-300');
+                emailInput.value = ''; // Clear the input field
+            } catch (error) {
+                console.error("Error adding document to Firestore:", error);
+                formMessage.textContent = 'There was an error joining the waitlist. Please try again.';
+                formMessage.classList.remove('hidden');
+                formMessage.classList.remove('text-green-300');
+                formMessage.classList.add('text-red-400');
+            }
+        });
+    </script>
+</body>
+</html>
